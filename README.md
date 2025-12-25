@@ -193,12 +193,6 @@ This project includes a **Continuous Integration (CI)** pipeline using GitHub Ac
 
 ---
 
-## 📌 Resume-Ready Description
-
-> Developed an end-to-end Face Mask Detection System using YOLOv8 and Streamlit, supporting image, video, and batch inference. Implemented ONNX-based deployment and automated CI validation using GitHub Actions to ensure code stability and dependency integrity.
-
----
-
 ## 👤 Author
 
 **Pranav Baghare**
