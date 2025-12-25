@@ -6,10 +6,8 @@ from ultralytics import YOLO
 from PIL import Image
 import tempfile
 import os
-<<<<<<< HEAD
 from collections import Counter
-=======
->>>>>>> 0245f7f012bd24bf9a8a6307b624562dc072f348
+
 
 # --------------------------------------------------
 # Page Configuration
