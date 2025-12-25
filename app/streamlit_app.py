@@ -1,34 +1,89 @@
 import streamlit as st
 import numpy as np
-import cv2
 import time
+import cv2
 from ultralytics import YOLO
 from PIL import Image
 import tempfile
 import os
 from collections import Counter
-
+import plotly.express as px
+import plotly.graph_objects as go
 
 # --------------------------------------------------
-# Page Configuration
+# Page Configuration (SIDEBAR OPEN)
 # --------------------------------------------------
 st.set_page_config(
     page_title="Face Mask Detection",
     page_icon="😷",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
+
+# --------------------------------------------------
+# CLEAN LIGHT UI (WHITE BACKGROUND)
+# --------------------------------------------------
+st.markdown("""
+<style>
+.stApp {
+    background-color: #f7f9fc;
+}
+.main-header {
+    background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+    padding: 2rem;
+    border-radius: 16px;
+    margin-bottom: 2rem;
+    text-align: center;
+}
+.main-header h1 {
+    color: white;
+    font-size: 2.5rem;
+    margin: 0;
+}
+.main-header p {
+    color: rgba(255,255,255,0.95);
+}
+.metric-card {
+    background: white;
+    border-radius: 14px;
+    padding: 1.4rem;
+    text-align: center;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+}
+.metric-value {
+    font-size: 2.6rem;
+    font-weight: 700;
+}
+.green { color: #00a65a; }
+.yellow { color: #f39c12; }
+.red { color: #e74c3c; }
+.image-container {
+    background: white;
+    border-radius: 14px;
+    padding: 1rem;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+}
+.footer {
+    text-align: center;
+    padding: 2rem;
+    color: #6b7280;
+    margin-top: 3rem;
+}
+</style>
+""", unsafe_allow_html=True)
 
 # --------------------------------------------------
 # Header
 # --------------------------------------------------
-st.markdown(
-    "<h1>😷 Face Mask Detection System</h1>"
-    "<p style='color:#6b7280;'>YOLO-based Surveillance Detection</p>",
-    unsafe_allow_html=True
-)
+st.markdown("""
+<div class="main-header">
+    <h1>😷 Face Mask Detection System</h1>
+    <p>AI-Powered Surveillance & Compliance Monitoring</p>
+</div>
+""", unsafe_allow_html=True)
 
 # --------------------------------------------------
-# Load Model (cached)
+# Load YOLO Model
 # --------------------------------------------------
 @st.cache_resource
 def load_model():
@@ -39,36 +94,45 @@ model = load_model()
 # --------------------------------------------------
 # Sidebar
 # --------------------------------------------------
-st.sidebar.header("⚙️ Settings")
+with st.sidebar:
+    st.markdown("## ⚙️ Configuration")
+    conf_threshold = st.slider("🎯 Confidence Threshold", 0.1, 1.0, 0.5, 0.05)
 
-conf_threshold = st.sidebar.slider(
-    "Confidence Threshold",
-    0.1, 1.0, 0.5, 0.05
-)
+    mode = st.radio(
+        "Detection Mode",
+        ["📤 Upload Image", "📁 Batch Processing", "🎥 Upload Video"]
+    )
 
-mode = st.sidebar.radio(
-    "Detection Mode",
-    [
-        "📤 Upload Image",
-        "🎥 Upload Video",
-        "💻 Webcam (Local OpenCV)"
-    ]
-)
+    st.markdown("### 🏷️ Class Labels")
+    st.success("😷 With Mask")
+    st.warning("⚠️ Incorrect Mask")
+    st.error("🚨 Without Mask")
 
-st.sidebar.markdown("---")
-st.sidebar.info(
-    "📌 Image & Video work everywhere.\n"
-    "Local webcam works only on your PC."
-)
+# --------------------------------------------------
+# Helper Charts
+# --------------------------------------------------
+def pie_chart(counts):
+    return px.pie(
+        values=list(counts.values()),
+        names=list(counts.keys()),
+        hole=0.4
+    )
+
+def gauge_chart(rate):
+    return go.Figure(go.Indicator(
+        mode="gauge+number",
+        value=rate,
+        number={'suffix': "%"},
+        gauge={'axis': {'range': [0, 100]}}
+    ))
 
 # ==================================================
 # IMAGE MODE
 # ==================================================
 if mode == "📤 Upload Image":
-    st.subheader("📤 Upload an Image")
 
     uploaded_file = st.file_uploader(
-        "Choose an image",
+        "Upload an image",
         type=["jpg", "jpeg", "png", "webp"]
     )
 
@@ -79,21 +143,29 @@ if mode == "📤 Upload Image":
         col1, col2 = st.columns(2)
 
         with col1:
-            st.image(image, caption="Original Image", use_column_width=True)
+            st.markdown('<div class="image-container">', unsafe_allow_html=True)
+            st.image(image, caption="Original Image", use_container_width=True)
+            st.markdown('</div>', unsafe_allow_html=True)
 
         if st.button("🚀 Run Detection"):
-            with st.spinner("Detecting faces and masks..."):
-                start = time.time()
-                results = model(img_np, conf=conf_threshold)[0]
-                end = time.time()
+
+            start = time.time()
+            results = model(img_np, conf=conf_threshold)[0]
+            end = time.time()
 
             annotated = results.plot()
             annotated = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
 
             with col2:
-                st.image(annotated, caption="Detected Output", use_column_width=True)
+                st.markdown('<div class="image-container">', unsafe_allow_html=True)
+                st.image(
+                    annotated,
+                    caption="Detected Output",
+                    use_container_width=True
+                )
+                st.markdown('</div>', unsafe_allow_html=True)
 
-            # ---------------- SUMMARY ----------------
+            # ---------------- DETECTION SUMMARY (YOUR REQUEST)
             st.markdown("### 📊 Detection Summary")
 
             if len(results.boxes) == 0:
@@ -102,43 +174,73 @@ if mode == "📤 Upload Image":
                 labels = [model.names[int(b.cls[0])] for b in results.boxes]
                 counts = Counter(labels)
 
-                m1, m2, m3 = st.columns(3)
-                m1.metric("😷 With Mask", counts.get("with_mask", 0))
-                m2.metric("⚠️ Incorrect Mask", counts.get("mask_weared_incorrect", 0))
-                m3.metric("🚨 No Mask", counts.get("without_mask", 0))
-
-                st.markdown("#### 🔍 Detailed Detections")
                 for box in results.boxes:
-                    label = model.names[int(box.cls[0])]
+                    cls = int(box.cls[0])
                     conf = float(box.conf[0])
+                    label = model.names[cls]
 
                     if label == "without_mask":
-                        st.error(f"🚨 No Mask — {conf:.2f}")
+                        st.error(f"🚨 {label} ({conf:.2f})")
                     elif label == "mask_weared_incorrect":
-                        st.warning(f"⚠️ Incorrect Mask — {conf:.2f}")
+                        st.warning(f"⚠️ {label} ({conf:.2f})")
                     else:
-                        st.success(f"✅ Mask Detected — {conf:.2f}")
+                        st.success(f"✅ {label} ({conf:.2f})")
 
-            st.caption(f"⏱ Inference Time: {end - start:.3f} seconds")
+                # ---------------- METRICS
+                total = sum(counts.values())
+                with_mask = counts.get("with_mask", 0)
+                incorrect = counts.get("mask_weared_incorrect", 0)
+                no_mask = counts.get("without_mask", 0)
+
+                m1, m2, m3, m4 = st.columns(4)
+                m1.markdown(f"<div class='metric-card'><div class='metric-value green'>{with_mask}</div>With Mask</div>", unsafe_allow_html=True)
+                m2.markdown(f"<div class='metric-card'><div class='metric-value yellow'>{incorrect}</div>Incorrect</div>", unsafe_allow_html=True)
+                m3.markdown(f"<div class='metric-card'><div class='metric-value red'>{no_mask}</div>No Mask</div>", unsafe_allow_html=True)
+                m4.markdown(f"<div class='metric-card'><div class='metric-value'>{total}</div>{end-start:.2f}s</div>", unsafe_allow_html=True)
+
 
 # ==================================================
-# VIDEO MODE
+# BATCH MODE
+# ==================================================
+elif mode == "📁 Batch Processing":
+
+    files = st.file_uploader(
+        "Upload multiple images",
+        type=["jpg", "jpeg", "png", "webp"],
+        accept_multiple_files=True
+    )
+
+    if files:
+        all_counts = Counter()
+
+        for f in files:
+            img = Image.open(f).convert("RGB")
+            res = model(np.array(img), conf=conf_threshold)[0]
+            labels = [model.names[int(b.cls[0])] for b in res.boxes]
+            all_counts.update(labels)
+
+        st.plotly_chart(
+            pie_chart(all_counts),
+            use_container_width=True
+        )
+
+# ==================================================
+# VIDEO MODE (LOCAL)
 # ==================================================
 elif mode == "🎥 Upload Video":
-    st.subheader("🎥 Upload a Video")
 
-    video_file = st.file_uploader(
-        "Choose a video file",
+    video = st.file_uploader(
+        "Upload a video",
         type=["mp4", "avi", "mov"]
     )
 
-    if video_file:
+    if video:
         tfile = tempfile.NamedTemporaryFile(delete=False)
-        tfile.write(video_file.read())
+        tfile.write(video.read())
         tfile.close()
 
         cap = cv2.VideoCapture(tfile.name)
-        stframe = st.empty()
+        frame_area = st.empty()
 
         while cap.isOpened():
             ret, frame = cap.read()
@@ -149,44 +251,20 @@ elif mode == "🎥 Upload Video":
             annotated = results.plot()
             annotated = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
 
-            stframe.image(annotated, channels="RGB")
+            frame_area.image(
+                annotated,
+                channels="RGB",
+                use_container_width=True
+            )
 
         cap.release()
         os.remove(tfile.name)
 
-# ==================================================
-# WEBCAM (LOCAL – OPENCV)
-# ==================================================
-elif mode == "💻 Webcam (Local OpenCV)":
-    st.subheader("💻 Live Webcam (Local OpenCV)")
-    st.warning("⚠️ Works only on your local machine")
-
-    run = st.checkbox("▶️ Start Webcam")
-
-    if run:
-        cap = cv2.VideoCapture(0)
-        frame_placeholder = st.empty()
-
-        while run:
-            ret, frame = cap.read()
-            if not ret:
-                break
-
-            results = model(frame, conf=conf_threshold)[0]
-            annotated = results.plot()
-            annotated = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
-
-            frame_placeholder.image(annotated, channels="RGB")
-
-        cap.release()
-        cv2.destroyAllWindows()
-
 # --------------------------------------------------
 # Footer
 # --------------------------------------------------
-st.markdown("---")
-st.markdown(
-    "<p style='text-align:center; color:#6b7280;'>"
-    "Academic + Real-World Surveillance Pipeline</p>",
-    unsafe_allow_html=True
-)
+st.markdown("""
+<div class="footer">
+    Face Mask Detection System • YOLOv8 • Streamlit
+</div>
+""", unsafe_allow_html=True)
