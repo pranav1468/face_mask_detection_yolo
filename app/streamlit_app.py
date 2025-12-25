@@ -11,7 +11,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 
 # --------------------------------------------------
-# Page Configuration (SIDEBAR OPEN)
+# Page Configuration
 # --------------------------------------------------
 st.set_page_config(
     page_title="Face Mask Detection",
@@ -21,7 +21,7 @@ st.set_page_config(
 )
 
 # --------------------------------------------------
-# CLEAN LIGHT UI (WHITE BACKGROUND)
+# Light UI Styling
 # --------------------------------------------------
 st.markdown("""
 <style>
@@ -97,7 +97,6 @@ model = load_model()
 with st.sidebar:
     st.markdown("## ⚙️ Configuration")
     conf_threshold = st.slider("🎯 Confidence Threshold", 0.1, 1.0, 0.5, 0.05)
-
     mode = st.radio(
         "Detection Mode",
         ["📤 Upload Image", "📁 Batch Processing", "🎥 Upload Video"]
@@ -109,7 +108,7 @@ with st.sidebar:
     st.error("🚨 Without Mask")
 
 # --------------------------------------------------
-# Helper Charts
+# Charts
 # --------------------------------------------------
 def pie_chart(counts):
     return px.pie(
@@ -144,7 +143,11 @@ if mode == "📤 Upload Image":
 
         with col1:
             st.markdown('<div class="image-container">', unsafe_allow_html=True)
-            st.image(image, caption="Original Image", use_container_width=True)
+            st.image(
+                image,
+                caption="Original Image",
+                use_column_width=True
+            )
             st.markdown('</div>', unsafe_allow_html=True)
 
         if st.button("🚀 Run Detection"):
@@ -161,11 +164,11 @@ if mode == "📤 Upload Image":
                 st.image(
                     annotated,
                     caption="Detected Output",
-                    use_container_width=True
+                    use_column_width=True
                 )
                 st.markdown('</div>', unsafe_allow_html=True)
 
-            # ---------------- DETECTION SUMMARY (YOUR REQUEST)
+            # -------- Detection Summary
             st.markdown("### 📊 Detection Summary")
 
             if len(results.boxes) == 0:
@@ -186,7 +189,6 @@ if mode == "📤 Upload Image":
                     else:
                         st.success(f"✅ {label} ({conf:.2f})")
 
-                # ---------------- METRICS
                 total = sum(counts.values())
                 with_mask = counts.get("with_mask", 0)
                 incorrect = counts.get("mask_weared_incorrect", 0)
@@ -198,31 +200,6 @@ if mode == "📤 Upload Image":
                 m3.markdown(f"<div class='metric-card'><div class='metric-value red'>{no_mask}</div>No Mask</div>", unsafe_allow_html=True)
                 m4.markdown(f"<div class='metric-card'><div class='metric-value'>{total}</div>{end-start:.2f}s</div>", unsafe_allow_html=True)
 
-
-# ==================================================
-# BATCH MODE
-# ==================================================
-elif mode == "📁 Batch Processing":
-
-    files = st.file_uploader(
-        "Upload multiple images",
-        type=["jpg", "jpeg", "png", "webp"],
-        accept_multiple_files=True
-    )
-
-    if files:
-        all_counts = Counter()
-
-        for f in files:
-            img = Image.open(f).convert("RGB")
-            res = model(np.array(img), conf=conf_threshold)[0]
-            labels = [model.names[int(b.cls[0])] for b in res.boxes]
-            all_counts.update(labels)
-
-        st.plotly_chart(
-            pie_chart(all_counts),
-            use_container_width=True
-        )
 
 # ==================================================
 # VIDEO MODE (LOCAL)
@@ -254,7 +231,7 @@ elif mode == "🎥 Upload Video":
             frame_area.image(
                 annotated,
                 channels="RGB",
-                use_container_width=True
+                use_column_width=True
             )
 
         cap.release()
